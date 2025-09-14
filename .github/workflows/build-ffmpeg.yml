@@ -343,6 +343,7 @@ jobs:
         zip -r "../${RELEASE_NAME}.zip" ffmpeg-build/
         cd ..
         
+        # Export to GitHub environment (convert MSYS2 paths)
         echo "RELEASE_NAME=${RELEASE_NAME}" >> $GITHUB_ENV
         echo "RELEASE_FILE=${RELEASE_NAME}.zip" >> $GITHUB_ENV
         
@@ -350,13 +351,12 @@ jobs:
 
     - name: Create GitHub Release
       if: success()
-      uses: actions/create-release@v1
-      id: create_release
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: v${{ github.event.inputs.ffmpeg_version || '8.0' }}-${{ github.run_number }}
-        release_name: FFmpeg ${{ github.event.inputs.ffmpeg_version || '8.0' }} Windows Build
+        name: FFmpeg ${{ github.event.inputs.ffmpeg_version || '8.0' }} Windows Build
         body: |
           # FFmpeg ${{ github.event.inputs.ffmpeg_version || '8.0' }} Windows x64 Build with CUDA Support
 
@@ -394,16 +394,17 @@ jobs:
           ---
           **Build ID**: ${{ github.run_number }}
           **Built on**: ${{ github.run_started_at }}
+        files: |
+          ${{ env.RELEASE_FILE }}
         draft: false
         prerelease: false
 
-    - name: Upload Release Asset
+    - name: Upload Additional Release Assets
       if: success()
-      uses: actions/upload-release-asset@v1
+      uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./${{ env.RELEASE_FILE }}
-        asset_name: ${{ env.RELEASE_FILE }}
-        asset_content_type: application/zip
+        tag_name: v${{ github.event.inputs.ffmpeg_version || '8.0' }}-${{ github.run_number }}
+        files: |
+          artifacts/ffmpeg-build/build-info.txt
