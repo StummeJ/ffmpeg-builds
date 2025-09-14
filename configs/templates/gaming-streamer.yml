@@ -2,7 +2,7 @@
 # Perfect for OBS Studio, game recording, and live streaming
 
 workflow_inputs:
-  ffmpeg_version: "latest"
+  ffmpeg_version: "8.0"
   feature_set: "standard"
   enable_cuda: true
   enable_nonfree: false

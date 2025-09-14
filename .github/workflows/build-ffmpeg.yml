@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ffmpeg_version:
-        description: 'FFmpeg version to build (latest, or specific version like 6.1.1)'
+        description: 'FFmpeg version to build (8.0, latest, or specific version like 7.1.1)'
         required: true
-        default: 'latest'
+        default: '8.0'
         type: string
       feature_set:
         description: 'Feature set to build'
@@ -44,7 +44,6 @@ on:
     branches: [ main, master ]
 
 env:
-  BUILD_TYPE: Release
   CUDA_VERSION: "12.3"
   
 jobs:
@@ -56,15 +55,43 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
+    - name: Cache CUDA Toolkit
+      if: ${{ github.event.inputs.enable_cuda == 'true' }}
+      id: cache-cuda
+      uses: actions/cache@v3
+      with:
+        path: |
+          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
+        key: cuda-${{ env.CUDA_VERSION }}-windows
+        restore-keys: |
+          cuda-${{ env.CUDA_VERSION }}-
+          
+    - name: Cache MSYS2 packages
+      uses: actions/cache@v3
+      with:
+        path: |
+          D:\a\_temp\msys64\var\cache\pacman\pkg\
+        key: msys2-packages-${{ runner.os }}-${{ hashFiles('**/*.yml') }}
+        restore-keys: |
+          msys2-packages-${{ runner.os }}-
+          
+    - name: Cache media-autobuild_suite
+      uses: actions/cache@v3
+      with:
+        path: |
+          media-autobuild_suite
+        key: media-autobuild-suite-${{ hashFiles('.github/workflows/build-ffmpeg.yml') }}
+        restore-keys: |
+          media-autobuild-suite-
+      
     - name: Setup Build Environment Info
       run: |
         echo "Building FFmpeg with the following configuration:"
-        echo "FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || 'latest' }}"
+        echo "FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || '8.0' }}"
         echo "Feature Set: ${{ github.event.inputs.feature_set || 'full' }}"
         echo "CUDA Support: ${{ github.event.inputs.enable_cuda || 'true' }}"
         echo "Non-free Support: ${{ github.event.inputs.enable_nonfree || 'false' }}"
         echo "NPP Support: ${{ github.event.inputs.enable_npp || 'false' }}"
-        echo "Build Type: ${{ env.BUILD_TYPE }}"
         echo "CUDA Version: ${{ env.CUDA_VERSION }}"
 
     - name: Setup MSYS2
@@ -83,7 +110,7 @@ jobs:
           unzip
         
     - name: Install CUDA Toolkit
-      if: ${{ github.event.inputs.enable_cuda == 'true' }}
+      if: ${{ github.event.inputs.enable_cuda == 'true' && steps.cache-cuda.outputs.cache-hit != 'true' }}
       run: |
         echo "Installing CUDA Toolkit ${{ env.CUDA_VERSION }}"
         # Download and install CUDA toolkit silently
@@ -95,7 +122,11 @@ jobs:
         
         Write-Output "Installing CUDA Toolkit..."
         Start-Process -FilePath $cuda_installer -ArgumentList "-s" -Wait -NoNewWindow
-        
+      shell: powershell
+      
+    - name: Setup CUDA Environment
+      if: ${{ github.event.inputs.enable_cuda == 'true' }}
+      run: |
         # Add CUDA to PATH
         $cuda_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}"
         echo "$cuda_path\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
@@ -110,7 +141,11 @@ jobs:
       shell: msys2 {0}
       run: |
         cd /d/a/ffmpeg-builds/ffmpeg-builds
-        git clone --depth 1 https://github.com/m-ab-s/media-autobuild_suite.git
+        if [ ! -d "media-autobuild_suite" ]; then
+          git clone --depth 1 https://github.com/m-ab-s/media-autobuild_suite.git
+        else
+          echo "media-autobuild_suite already exists (from cache)"
+        fi
         cd media-autobuild_suite
         ls -la
 
@@ -126,7 +161,7 @@ jobs:
         # FFmpeg version configuration
         EOF
         
-        if [[ "${{ github.event.inputs.ffmpeg_version }}" != "latest" ]]; then
+        if [[ "${{ github.event.inputs.ffmpeg_version }}" != "latest" && "${{ github.event.inputs.ffmpeg_version }}" != "8.0" ]]; then
           echo "ffmpegChoice=custom" >> build_config.txt
           echo "ffmpegCustomVersion=${{ github.event.inputs.ffmpeg_version }}" >> build_config.txt
         else
@@ -249,7 +284,7 @@ jobs:
         FFmpeg Build Information
         ========================
         Build Date: $(date)
-        FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || 'latest' }}
+        FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || '8.0' }}
         Feature Set: ${{ github.event.inputs.feature_set || 'full' }}
         CUDA Support: ${{ github.event.inputs.enable_cuda || 'true' }}
         Non-free Support: ${{ github.event.inputs.enable_nonfree || 'false' }}
@@ -259,7 +294,6 @@ jobs:
         Build Environment:
         - Windows Runner: windows-latest
         - CUDA Version: ${{ env.CUDA_VERSION }}
-        - Build Type: ${{ env.BUILD_TYPE }}
         EOF
         
         # List final artifacts
@@ -278,7 +312,7 @@ jobs:
       uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: ffmpeg-cuda-build-${{ github.event.inputs.ffmpeg_version || 'latest' }}-${{ github.event.inputs.feature_set || 'full' }}
+        name: ffmpeg-cuda-build-${{ github.event.inputs.ffmpeg_version || '8.0' }}-${{ github.event.inputs.feature_set || 'full' }}
         path: artifacts/ffmpeg-build/
         retention-days: 30
 
@@ -291,3 +325,85 @@ jobs:
           media-autobuild_suite/build/logs/
           media-autobuild_suite/*.log
         retention-days: 7
+
+    - name: Create Release Archive
+      if: success()
+      shell: msys2 {0}
+      run: |
+        cd /d/a/ffmpeg-builds/ffmpeg-builds
+        
+        # Create release archive
+        RELEASE_NAME="ffmpeg-${{ github.event.inputs.ffmpeg_version || '8.0' }}-win64-cuda"
+        if [[ "${{ github.event.inputs.feature_set }}" != "full" ]]; then
+          RELEASE_NAME="${RELEASE_NAME}-${{ github.event.inputs.feature_set }}"
+        fi
+        
+        # Create zip archive
+        cd artifacts
+        zip -r "../${RELEASE_NAME}.zip" ffmpeg-build/
+        cd ..
+        
+        echo "RELEASE_NAME=${RELEASE_NAME}" >> $GITHUB_ENV
+        echo "RELEASE_FILE=${RELEASE_NAME}.zip" >> $GITHUB_ENV
+        
+        ls -la "${RELEASE_NAME}.zip"
+
+    - name: Create GitHub Release
+      if: success()
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.event.inputs.ffmpeg_version || '8.0' }}-${{ github.run_number }}
+        release_name: FFmpeg ${{ github.event.inputs.ffmpeg_version || '8.0' }} Windows Build
+        body: |
+          # FFmpeg ${{ github.event.inputs.ffmpeg_version || '8.0' }} Windows x64 Build with CUDA Support
+
+          ## 🚀 Build Configuration
+          - **FFmpeg Version**: ${{ github.event.inputs.ffmpeg_version || '8.0' }}
+          - **Feature Set**: ${{ github.event.inputs.feature_set || 'full' }}
+          - **CUDA Support**: ${{ github.event.inputs.enable_cuda == 'true' && '✅ Enabled' || '❌ Disabled' }}
+          - **Non-free Codecs**: ${{ github.event.inputs.enable_nonfree == 'true' && '✅ Enabled' || '❌ Disabled' }}
+          - **NPP Support**: ${{ github.event.inputs.enable_npp == 'true' && '✅ Enabled' || '❌ Disabled' }}
+
+          ## 📦 What's Included
+          - `ffmpeg.exe` - Main FFmpeg executable with all configured features
+          - `ffprobe.exe` - Media analysis tool
+          - `ffplay.exe` - Simple media player (if built)
+          - `build-info.txt` - Detailed build configuration and system information
+
+          ## 🎮 Hardware Acceleration
+          ${{ github.event.inputs.enable_cuda == 'true' && 'This build includes NVIDIA CUDA hardware acceleration support:
+          - **NVENC**: Hardware-accelerated encoding (H.264/H.265)
+          - **CUVID/NVDEC**: Hardware-accelerated decoding
+          - **Compatible GPUs**: GTX 10xx series and newer
+          
+          To verify CUDA support:
+          ```cmd
+          ffmpeg.exe -hwaccels
+          ffmpeg.exe -encoders | findstr nvenc
+          ```' || 'CUDA support is disabled in this build.' }}
+
+          ## 🔧 System Requirements
+          - Windows 10/11 x64
+          ${{ github.event.inputs.enable_cuda == 'true' && '- NVIDIA GPU with compute capability 3.0+ (GTX 10xx series or newer)
+          - Latest NVIDIA drivers' || '' }}
+          - Visual C++ Redistributable (usually pre-installed)
+
+          ---
+          **Build ID**: ${{ github.run_number }}
+          **Built on**: ${{ github.run_started_at }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Asset
+      if: success()
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./${{ env.RELEASE_FILE }}
+        asset_name: ${{ env.RELEASE_FILE }}
+        asset_content_type: application/zip

@@ -9,7 +9,7 @@ For OBS Studio and game recording:
 ```
 Go to: Actions → Build FFmpeg with CUDA Support → Run workflow
 Configure:
-- FFmpeg Version: latest
+- FFmpeg Version: 8.0
 - Feature Set: standard  
 - Enable CUDA: ✓
 - Enable Non-free: ✗
@@ -22,7 +22,7 @@ For YouTube creators and professional video editing:
 ```
 Go to: Actions → Build FFmpeg with CUDA Support → Run workflow
 Configure:
-- FFmpeg Version: latest
+- FFmpeg Version: 8.0
 - Feature Set: full
 - Enable CUDA: ✓ 
 - Enable Non-free: ✓
@@ -35,25 +35,12 @@ For server-side processing and Docker containers:
 ```
 Go to: Actions → Build FFmpeg with CUDA Support → Run workflow  
 Configure:
-- FFmpeg Version: latest
+- FFmpeg Version: 8.0
 - Feature Set: minimal
 - Enable CUDA: ✗
 - Enable Non-free: ✗
 - Enable NPP: ✗
 - Custom Args: --disable-programs --enable-small
-```
-
-### 4. Development Build
-For FFmpeg development and testing:
-```
-Go to: Actions → Build FFmpeg with CUDA Support → Run workflow
-Configure:
-- FFmpeg Version: latest
-- Feature Set: custom
-- Enable CUDA: ✓
-- Enable Non-free: ✗  
-- Enable NPP: ✗
-- Custom Args: --enable-debug --extra-cflags=-g
 ```
 
 ## Build Time Estimates

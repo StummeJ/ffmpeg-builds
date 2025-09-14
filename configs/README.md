@@ -13,9 +13,6 @@ Full-featured build for video content creators with all major codecs.
 ### minimal-server.yml
 Lightweight build for server environments with essential codecs only.
 
-### research-dev.yml
-Development build with debugging symbols and additional tools.
-
 ## Usage
 
 Copy the desired template configuration and customize the workflow dispatch inputs accordingly.

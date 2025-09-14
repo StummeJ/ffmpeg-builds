@@ -21,7 +21,10 @@ jobs:
       id: get_version
       run: |
         # Get the latest FFmpeg release version from their Git tags
-        LATEST_VERSION=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/tags | jq -r '.[0].name' | sed 's/n//')
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/tags | jq -r '.[].name | select(test("^n[0-9]+\\.[0-9]+$"))' | head -1 | sed 's/n//')
+        if [ -z "$LATEST_VERSION" ]; then
+          LATEST_VERSION="8.0"  # Fallback to known stable version
+        fi
         echo "Latest FFmpeg version: $LATEST_VERSION"
         echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
         

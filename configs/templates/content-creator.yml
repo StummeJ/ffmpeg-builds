@@ -2,7 +2,7 @@
 # Complete codec suite for professional video production
 
 workflow_inputs:
-  ffmpeg_version: "latest"
+  ffmpeg_version: "8.0"
   feature_set: "full"
   enable_cuda: true
   enable_nonfree: true

@@ -20,7 +20,7 @@ A comprehensive GitHub Actions workflow system for building FFmpeg on Windows x6
 2. Select "Build FFmpeg with CUDA Support" workflow
 3. Click "Run workflow"
 4. Configure your build options:
-   - **FFmpeg Version**: `latest` or specific version (e.g., `6.1.1`)
+   - **FFmpeg Version**: `8.0` (default), `latest`, or specific version (e.g., `7.1.1`)
    - **Feature Set**: Choose from `minimal`, `standard`, `full`, or `custom`
    - **CUDA Support**: Enable/disable NVIDIA CUDA acceleration
    - **Non-free Support**: Enable proprietary codecs
@@ -59,7 +59,7 @@ This project uses the excellent [media-autobuild_suite](https://github.com/m-ab-
 
 ```yaml
 # Workflow inputs:
-ffmpeg_version: "latest"
+ffmpeg_version: "8.0"
 feature_set: "full"
 enable_cuda: true
 enable_nonfree: false
@@ -70,7 +70,7 @@ enable_npp: false
 
 ```yaml
 # Workflow inputs:
-ffmpeg_version: "6.1.1"
+ffmpeg_version: "7.1.1"
 feature_set: "full"
 enable_cuda: true
 enable_nonfree: true
@@ -81,7 +81,7 @@ enable_npp: true
 
 ```yaml
 # Workflow inputs:
-ffmpeg_version: "latest"
+ffmpeg_version: "8.0"
 feature_set: "custom"
 enable_cuda: true
 enable_nonfree: false
@@ -165,7 +165,6 @@ The build workflow can be triggered by:
 
 ### Environment Variables
 
-- `BUILD_TYPE`: Set to "Release" for optimized builds
 - `CUDA_VERSION`: CUDA toolkit version (currently 12.3)
 
 ## Troubleshooting

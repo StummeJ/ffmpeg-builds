@@ -2,7 +2,7 @@
 # Lightweight build for server environments and automated processing
 
 workflow_inputs:
-  ffmpeg_version: "latest"
+  ffmpeg_version: "8.0"
   feature_set: "minimal"
   enable_cuda: false
   enable_nonfree: false
