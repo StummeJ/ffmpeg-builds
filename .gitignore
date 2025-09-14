@@ -1,0 +1,49 @@
+# Build artifacts and temporary files
+artifacts/
+build/
+local64/
+media-autobuild_suite/
+
+# Windows build artifacts
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+
+# Temporary directories
+tmp/
+temp/
+cache/
+
+# Log files
+*.log
+*.txt.bak
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Package manager files
+node_modules/
+packages/
+
+# Build system files
+CMakeCache.txt
+CMakeFiles/
+Makefile
+*.cmake
+
+# Archive files
+*.zip
+*.tar.gz
+*.7z
+*.rar

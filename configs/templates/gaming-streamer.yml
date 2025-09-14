@@ -1,0 +1,31 @@
+# Gaming & Streaming Optimized Build
+# Perfect for OBS Studio, game recording, and live streaming
+
+workflow_inputs:
+  ffmpeg_version: "8.0"
+  feature_set: "standard"
+  enable_cuda: true
+  enable_nonfree: false
+  enable_npp: false
+  custom_configure_args: "--enable-nvenc --enable-cuvid --enable-libx264 --enable-libx265"
+
+description: |
+  This configuration provides an FFmpeg build optimized for gaming and streaming:
+  
+  Features:
+  - NVIDIA NVENC hardware encoding for minimal performance impact
+  - CUVID hardware decoding for GPU-accelerated playback
+  - x264 and x265 software encoders as fallback options
+  - Standard codec set without bloat
+  
+  Perfect for:
+  - OBS Studio integration
+  - Game recording and streaming
+  - Real-time video processing
+  - Low-latency encoding scenarios
+
+recommended_use_cases:
+  - Game streaming (Twitch, YouTube Gaming)
+  - Screen recording applications
+  - OBS Studio plugins
+  - Real-time video effects

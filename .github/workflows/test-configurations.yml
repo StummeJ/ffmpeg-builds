@@ -1,0 +1,35 @@
+name: Test Build Configurations
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Sundays at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  test-minimal:
+    uses: ./.github/workflows/build-ffmpeg.yml
+    with:
+      ffmpeg_version: 'latest'
+      feature_set: 'minimal'
+      enable_cuda: false
+      enable_nonfree: false
+      enable_npp: false
+
+  test-standard-cuda:
+    uses: ./.github/workflows/build-ffmpeg.yml
+    with:
+      ffmpeg_version: 'latest'
+      feature_set: 'standard'
+      enable_cuda: true
+      enable_nonfree: false
+      enable_npp: false
+
+  test-full-nonfree:
+    uses: ./.github/workflows/build-ffmpeg.yml
+    with:
+      ffmpeg_version: 'latest'
+      feature_set: 'full'
+      enable_cuda: true
+      enable_nonfree: true
+      enable_npp: true

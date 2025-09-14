@@ -1,0 +1,101 @@
+name: Check FFmpeg Updates
+
+on:
+  schedule:
+    # Check for new FFmpeg releases daily at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-ffmpeg-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      latest_version: ${{ steps.get_version.outputs.latest_version }}
+      has_new_version: ${{ steps.check_version.outputs.has_new_version }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Get Latest FFmpeg Version
+      id: get_version
+      run: |
+        # Get the latest FFmpeg release version from their Git tags
+        # FFmpeg releases are prefixed with 'n' and dev builds are suffixed with '-dev'
+        LATEST_VERSION=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/tags | jq -r '.[].name | select(test("^n[0-9]+\\.[0-9]+$"))' | head -1 | sed 's/n//')
+        if [ -z "$LATEST_VERSION" ]; then
+          LATEST_VERSION="8.0"  # Fallback to known stable version
+        fi
+        echo "Latest FFmpeg version: $LATEST_VERSION"
+        echo "latest_version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        
+    - name: Check if Build Exists
+      id: check_version  
+      run: |
+        # Check if we already have a build artifact for this version
+        LATEST_VERSION="${{ steps.get_version.outputs.latest_version }}"
+        
+        # Use GitHub API to check for existing artifacts with this version
+        ARTIFACT_COUNT=$(gh api repos/${{ github.repository }}/actions/artifacts --jq ".artifacts[] | select(.name | contains(\"$LATEST_VERSION\")) | .name" | wc -l)
+        
+        if [ $ARTIFACT_COUNT -eq 0 ]; then
+          echo "No existing build found for version $LATEST_VERSION"
+          echo "has_new_version=true" >> $GITHUB_OUTPUT
+        else
+          echo "Build already exists for version $LATEST_VERSION" 
+          echo "has_new_version=false" >> $GITHUB_OUTPUT
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  auto-build-latest:
+    needs: check-ffmpeg-updates
+    if: needs.check-ffmpeg-updates.outputs.has_new_version == 'true'
+    uses: ./.github/workflows/build-ffmpeg.yml
+    with:
+      ffmpeg_version: ${{ needs.check-ffmpeg-updates.outputs.latest_version }}
+      feature_set: 'full'
+      enable_cuda: true
+      enable_nonfree: true
+      enable_npp: true
+      build_x264: true
+      build_x265: true
+      build_av1: true
+      standalone_binaries: false
+    secrets: inherit
+
+  notify-new-build:
+    needs: [check-ffmpeg-updates, auto-build-latest]
+    if: needs.check-ffmpeg-updates.outputs.has_new_version == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Create Issue for New Build
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const version = '${{ needs.check-ffmpeg-updates.outputs.latest_version }}';
+          
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: `New FFmpeg Build Available: ${version}`,
+            body: `🎉 A new FFmpeg build has been automatically created!
+            
+            **Version**: ${version}
+            **Configuration**: Full feature set with CUDA support
+            **Artifacts**: Check the [Actions tab](../../actions) for build artifacts
+            
+            ### What's Included:
+            - Full codec suite (x264, x265, AV1, VP9, etc.)
+            - NVIDIA CUDA hardware acceleration
+            - Standard feature set for most use cases
+            
+            ### Download:
+            1. Go to [Actions](../../actions)  
+            2. Find the latest "Build FFmpeg with CUDA Support" workflow run
+            3. Download the \`ffmpeg-cuda-build-${version}-full\` artifact
+            
+            This issue will be automatically closed when the build is verified.`,
+            labels: ['enhancement', 'automated-build']
+          });
