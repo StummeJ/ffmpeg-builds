@@ -84,15 +84,6 @@ jobs:
         restore-keys: |
           cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-
           
-    - name: Cache MSYS2 packages
-      uses: actions/cache@v3
-      with:
-        path: |
-          D:\a\_temp\msys64\var\cache\pacman\pkg\
-        key: msys2-packages-${{ runner.os }}-${{ hashFiles('**/*.yml') }}
-        restore-keys: |
-          msys2-packages-${{ runner.os }}-
-          
     - name: Cache media-autobuild_suite
       uses: actions/cache@v3
       with:
@@ -634,13 +625,7 @@ jobs:
         files: |
           artifacts/ffmpeg-build/build-info.txt
 
-    - name: Save MSYS2 Cache on Failure
-      if: failure()
-      uses: actions/cache/save@v3
-      with:
-        path: |
-          D:\a\_temp\msys64\var\cache\pacman\pkg\
-        key: msys2-packages-${{ runner.os }}-${{ hashFiles('**/*.yml') }}-failure-${{ github.run_number }}
+
 
     - name: Save media-autobuild_suite Cache on Failure  
       if: failure()
