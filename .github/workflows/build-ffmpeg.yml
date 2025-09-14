@@ -72,20 +72,18 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       
-    - name: Cache CUDA Toolkit
+    - name: Cache CUDA SDK
       if: ${{ github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null }}
       id: cache-cuda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}
           C:\Program Files\NVIDIA Corporation\Nsight*
         key: cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-${{ runner.os }}
-        restore-keys: |
-          cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-
           
     - name: Cache media-autobuild_suite
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           media-autobuild_suite
@@ -126,34 +124,23 @@ jobs:
       if: ${{ (github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null) && steps.cache-cuda.outputs.cache-hit != 'true' }}
       shell: powershell
       run: |
-        $cudaVersion = "${{ github.event.inputs.cuda_version || '13.0.0' }}"
-        Write-Host "Downloading CUDA SDK v$cudaVersion..."
-        
-        # Use network installer for CUDA 13.0.0 and above, local installer for older versions
-        if ([version]$cudaVersion -ge [version]"13.0.0") {
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/$cudaVersion/network_installers/cuda_${cudaVersion}_windows_network.exe"
-        } else {
-          # For older versions like 12.6.0, use local installer with appropriate driver version
-          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/$cudaVersion/local_installers/cuda_${cudaVersion}_560.94_windows.exe"
-        }
-        
+        Write-Host "Downloading CUDA SDK v${{ github.event.inputs.cuda_version || '13.0.0' }}..."
+        $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/${{ github.event.inputs.cuda_version || '13.0.0' }}/network_installers/cuda_${{ github.event.inputs.cuda_version || '13.0.0' }}_windows_network.exe"
         $cudaInstaller = "cuda_installer.exe"
         
-        Write-Host "Downloading from: $cudaUrl"
         Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
         
         Write-Host "Installing CUDA SDK silently..."
         Start-Process -Wait -FilePath $cudaInstaller -ArgumentList "-s"
         
         # Verify installation
-        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion\bin\nvcc.exe"
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}\bin\nvcc.exe"
         if (Test-Path $cudaPath) {
-          Write-Host "CUDA SDK v$cudaVersion installed successfully"
+          Write-Host "CUDA SDK v${{ github.event.inputs.cuda_version || '13.0.0' }} installed successfully"
           # Set environment variables for the session
-          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}"
           echo "CUDA_PATH=$env:CUDA_PATH" >> $env:GITHUB_ENV
-          $versionEnvVar = "CUDA_PATH_V$($cudaVersion.Replace('.', '_'))"
-          echo "$versionEnvVar=$env:CUDA_PATH" >> $env:GITHUB_ENV
+          echo "CUDA_PATH_V${{ github.event.inputs.cuda_version || '13.0.0' | Replace '.', '_' }}=$env:CUDA_PATH" >> $env:GITHUB_ENV
         } else {
           throw "CUDA SDK installation failed"
         }
