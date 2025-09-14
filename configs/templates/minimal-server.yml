@@ -1,0 +1,32 @@
+# Minimal Server Build
+# Lightweight build for server environments and automated processing
+
+workflow_inputs:
+  ffmpeg_version: "latest"
+  feature_set: "minimal"
+  enable_cuda: false
+  enable_nonfree: false
+  enable_npp: false
+  custom_configure_args: "--disable-debug --enable-small --disable-programs"
+
+description: |
+  This configuration provides a minimal FFmpeg build for server deployments:
+  
+  Features:
+  - Essential codecs only (H.264, AAC, MP3)
+  - No CUDA dependencies for wider compatibility
+  - Minimal size and memory footprint
+  - No GUI programs (ffplay) to reduce dependencies
+  
+  Perfect for:
+  - Server-side video processing
+  - Docker containers
+  - Automated transcoding services
+  - Cloud deployment scenarios
+
+recommended_use_cases:
+  - Web application backends
+  - Automated video processing pipelines
+  - Microservice architectures
+  - Cloud functions and serverless
+  - Docker-based deployments

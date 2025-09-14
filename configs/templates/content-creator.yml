@@ -1,0 +1,33 @@
+# Content Creator Full-Featured Build
+# Complete codec suite for professional video production
+
+workflow_inputs:
+  ffmpeg_version: "latest"
+  feature_set: "full"
+  enable_cuda: true
+  enable_nonfree: true
+  enable_npp: true
+  custom_configure_args: "--enable-gpl --enable-version3 --enable-libass --enable-libfreetype"
+
+description: |
+  This configuration provides a comprehensive FFmpeg build for content creators:
+  
+  Features:
+  - Full codec suite including AV1, HEVC, VP9
+  - NVIDIA CUDA acceleration with NPP support
+  - Non-free codecs for maximum compatibility
+  - Advanced subtitle and text rendering
+  - GPL and version3 licensed components
+  
+  Perfect for:
+  - Professional video editing workflows
+  - Multi-format content creation
+  - Advanced encoding scenarios
+  - Maximum codec compatibility
+
+recommended_use_cases:
+  - YouTube content creation
+  - Professional video editing
+  - Multi-platform content distribution
+  - Archival and format conversion
+  - Advanced video processing pipelines
