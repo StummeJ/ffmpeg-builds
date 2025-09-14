@@ -134,13 +134,15 @@ jobs:
         Start-Process -Wait -FilePath $cudaInstaller -ArgumentList "-s"
         
         # Verify installation
-        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}\bin\nvcc.exe"
+        $cudaVersion = "${{ github.event.inputs.cuda_version || '13.0.0' }}"
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion\bin\nvcc.exe"
         if (Test-Path $cudaPath) {
-          Write-Host "CUDA SDK v${{ github.event.inputs.cuda_version || '13.0.0' }} installed successfully"
+          Write-Host "CUDA SDK v$cudaVersion installed successfully"
           # Set environment variables for the session
-          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}"
+          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
           echo "CUDA_PATH=$env:CUDA_PATH" >> $env:GITHUB_ENV
-          echo "CUDA_PATH_V${{ github.event.inputs.cuda_version || '13.0.0' | Replace '.', '_' }}=$env:CUDA_PATH" >> $env:GITHUB_ENV
+          $versionVar = "CUDA_PATH_V$($cudaVersion.Replace('.', '_'))"
+          echo "$versionVar=$env:CUDA_PATH" >> $env:GITHUB_ENV
         } else {
           throw "CUDA SDK installation failed"
         }
