@@ -191,16 +191,20 @@ jobs:
           LICENSE=4
         fi
         
-        # Feature set mapping
-        case "${{ github.event.inputs.feature_set || 'full' }}" in
+        # Feature set mapping determines how many additional codecs/libraries are enabled
+        FEATURE_SET="${{ github.event.inputs.feature_set || 'full' }}"
+        case "$FEATURE_SET" in
           "minimal")
             FFMPEG_CHOICE=2  # Light build
+            ENABLE_EXTRA_CODECS=false
             ;;
           "standard")
             FFMPEG_CHOICE=3  # Zeranoe build
+            ENABLE_EXTRA_CODECS=false
             ;;
           "full"|"custom")
             FFMPEG_CHOICE=4  # Full build
+            ENABLE_EXTRA_CODECS=true
             ;;
         esac
         
@@ -214,6 +218,61 @@ jobs:
         # Standalone binaries
         STANDALONE=$([ "${{ github.event.inputs.standalone_binaries || 'false' }}" == "true" ] && echo "1" || echo "2")
         
+        # Set codec/library values based on feature set
+        if [[ "$ENABLE_EXTRA_CODECS" == "true" ]]; then
+          # Full feature set - enable most useful codecs and libraries
+          OTHER265=1      # kvazaar H.265 encoder
+          FLAC=1         # FLAC codec
+          MEDIAINFO=1    # MediaInfo tool
+          SOXB=1         # SoX audio processor
+          MP4BOX=1       # MP4Box tool
+          RTMPDUMP=1     # RTMP streaming
+          BMX=1          # BMX tools
+          EXHALE=1       # xHE-AAC encoder
+          CURL=1         # cURL library
+          RIPGREP=1      # ripgrep search tool
+          LIBAVIF=1      # AVIF image format
+          LIBHEIF=1      # HEIF image format  
+          JQ=1           # JSON processor
+          DSSIM=1        # Image similarity tool
+          AVFS2=1        # AVS2 codec
+          DOVITOOL=1     # Dolby Vision tool
+          HDR10PLUSTOOL=1 # HDR10+ tool
+          CCACHE=1       # Compiler cache
+          SVTHEVC=1      # SVT-HEVC encoder
+          SVTVP9=1       # SVT-VP9 encoder
+          JO=1           # JSON output tool
+          JPEGXL=1       # JPEG XL support
+          VVENC=1        # VVC encoder
+          VVDEC=1        # VVC decoder
+        else
+          # Minimal/Standard feature set - disable extra codecs
+          OTHER265=2
+          FLAC=2
+          MEDIAINFO=2
+          SOXB=2
+          MP4BOX=2
+          RTMPDUMP=2
+          BMX=2
+          EXHALE=2
+          CURL=2
+          RIPGREP=2
+          LIBAVIF=2
+          LIBHEIF=2
+          JQ=2
+          DSSIM=2
+          AVFS2=2
+          DOVITOOL=2
+          HDR10PLUSTOOL=2
+          CCACHE=2
+          SVTHEVC=2
+          SVTVP9=2
+          JO=2
+          JPEGXL=2
+          VVENC=2
+          VVDEC=2
+        fi
+        
         # Create media-autobuild_suite.ini file with configuration
         cat > build/media-autobuild_suite.ini << EOF
 [compiler list]
@@ -222,17 +281,17 @@ license2=${LICENSE}
 vpx2=${VPX}
 x2643=${X264}
 x2652=${X265}
-other265=2
-flac=2
+other265=${OTHER265}
+flac=${FLAC}
 fdkaac=1
-mediainfo=2
-soxB=2
+mediainfo=${MEDIAINFO}
+soxB=${SOXB}
 ffmpegB2=1
 ffmpegUpdate=2
 ffmpegChoice=${FFMPEG_CHOICE}
 ffmpegKeepLegacyOpts=2
-mp4box=2
-rtmpdump=2
+mp4box=${MP4BOX}
+rtmpdump=${RTMPDUMP}
 mplayer2=2
 mpv=2
 cores=2
@@ -240,42 +299,42 @@ deleteSource=1
 strip=1
 pack=2
 logging=1
-bmx=2
+bmx=${BMX}
 standalone=${STANDALONE}
 updateSuite=2
 av1an=2
 aom=${AOM}
 faac=2
-exhale=2
+exhale=${EXHALE}
 ffmbc=2
-curl=2
+curl=${CURL}
 cyanrip2=2
 rav1e=1
-ripgrep=2
+ripgrep=${RIPGREP}
 dav1d=1
-libavif=2
-libheif=2
+libavif=${LIBAVIF}
+libheif=${LIBHEIF}
 vvc=2
 uvg266=2
-jq=2
-dssim=2
-gifski=3
-avs2=2
-dovitool=2
-hdr10plustool=2
+jq=${JQ}
+dssim=${DSSIM}
+gifski=2
+avs2=${AVFS2}
+dovitool=${DOVITOOL}
+hdr10plustool=${HDR10PLUSTOOL}
 timeStamp=2
 noMintty=1
-ccache=2
-svthevc=2
+ccache=${CCACHE}
+svthevc=${SVTHEVC}
 svtav1=${SVT_AV1}
-svtvp9=2
+svtvp9=${SVTVP9}
 xvc=2
-jo=2
+jo=${JO}
 vlc=2
 CC=1
-jpegxl=2
-vvenc=2
-vvdec=2
+jpegxl=${JPEGXL}
+vvenc=${VVENC}
+vvdec=${VVDEC}
 zlib=3
 ffmpegPath=2
 pkgUpdateTime=86400
@@ -289,10 +348,12 @@ EOF
         echo "Architecture: 64-bit only"
         echo "License: $([ $LICENSE -eq 1 ] && echo 'Non-free' || echo 'LGPL')"
         echo "Feature Set: ${{ github.event.inputs.feature_set || 'full' }}"
+        echo "FFmpeg Choice: $FFMPEG_CHOICE ($([ $FFMPEG_CHOICE -eq 2 ] && echo 'Light' || [ $FFMPEG_CHOICE -eq 3 ] && echo 'Zeranoe' || echo 'Full'))"
         echo "x264: $([ $X264 -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
         echo "x265: $([ $X265 -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
         echo "AV1: $([ $AOM -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
         echo "Standalone: $([ $STANDALONE -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
+        echo "Extra Codecs: $ENABLE_EXTRA_CODECS"
         
         # Create ffmpeg_options.txt for CUDA/NPP support if needed
         if [[ "${{ github.event.inputs.enable_cuda || 'true' }}" == "true" || "${{ github.event.inputs.enable_npp || 'true' }}" == "true" ]]; then
