@@ -21,6 +21,7 @@ jobs:
       id: get_version
       run: |
         # Get the latest FFmpeg release version from their Git tags
+        # FFmpeg releases are prefixed with 'n' and dev builds are suffixed with '-dev'
         LATEST_VERSION=$(curl -s https://api.github.com/repos/FFmpeg/FFmpeg/tags | jq -r '.[].name | select(test("^n[0-9]+\\.[0-9]+$"))' | head -1 | sed 's/n//')
         if [ -z "$LATEST_VERSION" ]; then
           LATEST_VERSION="8.0"  # Fallback to known stable version
@@ -55,8 +56,12 @@ jobs:
       ffmpeg_version: ${{ needs.check-ffmpeg-updates.outputs.latest_version }}
       feature_set: 'full'
       enable_cuda: true
-      enable_nonfree: false
-      enable_npp: false
+      enable_nonfree: true
+      enable_npp: true
+      build_x264: true
+      build_x265: true
+      build_av1: true
+      standalone_binaries: false
     secrets: inherit
 
   notify-new-build:
