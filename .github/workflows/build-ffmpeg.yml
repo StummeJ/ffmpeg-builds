@@ -1,6 +1,6 @@
 name: Build FFmpeg with CUDA Support
 
-on:
+"on":
   workflow_dispatch:
     inputs:
       ffmpeg_version:
@@ -53,18 +53,15 @@ on:
         required: true
         default: false
         type: boolean
-      custom_configure_args:
-        description: 'Additional configure arguments (for custom feature set)'
-        required: false
-        default: ''
+      cuda_version:
+        description: 'CUDA version to install (13.0.0, 12.6.0, 12.5.0, etc.)'
+        required: true
+        default: '13.0.0'
         type: string
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-
-env:
-  CUDA_VERSION: "12.6"
   
 jobs:
   build:
@@ -81,10 +78,11 @@ jobs:
       uses: actions/cache@v3
       with:
         path: |
-          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
-        key: cuda-${{ env.CUDA_VERSION }}-windows
+          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}
+          C:\Program Files\NVIDIA Corporation\Nsight*
+        key: cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-${{ runner.os }}
         restore-keys: |
-          cuda-${{ env.CUDA_VERSION }}-
+          cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-
           
     - name: Cache MSYS2 packages
       uses: actions/cache@v3
@@ -110,13 +108,13 @@ jobs:
         echo "FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || '8.0' }}"
         echo "Feature Set: ${{ github.event.inputs.feature_set || 'full' }}"
         echo "CUDA Support: ${{ github.event.inputs.enable_cuda || 'true' }}"
+        echo "CUDA Version: ${{ github.event.inputs.cuda_version || '13.0.0' }}"
         echo "Non-free Support: ${{ github.event.inputs.enable_nonfree || 'true' }}"
         echo "NPP Support: ${{ github.event.inputs.enable_npp || 'true' }}"
         echo "x264 Support: ${{ github.event.inputs.build_x264 || 'true' }}"
         echo "x265 Support: ${{ github.event.inputs.build_x265 || 'true' }}"
         echo "AV1 Support: ${{ github.event.inputs.build_av1 || 'true' }}"
         echo "Standalone Binaries: ${{ github.event.inputs.standalone_binaries || 'false' }}"
-        echo "CUDA Version: ${{ env.CUDA_VERSION }}"
 
     - name: Setup MSYS2
       uses: msys2/setup-msys2@v2
@@ -133,32 +131,57 @@ jobs:
           wget
           unzip
         
-    - name: Install CUDA Toolkit
+    - name: Download and Install CUDA SDK
       if: ${{ (github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null) && steps.cache-cuda.outputs.cache-hit != 'true' }}
-      run: |
-        echo "Installing CUDA Toolkit ${{ env.CUDA_VERSION }}"
-        # Download and install CUDA toolkit silently
-        $cuda_url = "https://developer.download.nvidia.com/compute/cuda/${{ env.CUDA_VERSION }}.0/local_installers/cuda_${{ env.CUDA_VERSION }}.0_560.94_windows.exe"
-        $cuda_installer = "$env:TEMP\cuda_installer.exe"
-        
-        Write-Output "Downloading CUDA Toolkit..."
-        Invoke-WebRequest -Uri $cuda_url -OutFile $cuda_installer
-        
-        Write-Output "Installing CUDA Toolkit..."
-        Start-Process -FilePath $cuda_installer -ArgumentList "-s" -Wait -NoNewWindow
       shell: powershell
+      run: |
+        $cudaVersion = "${{ github.event.inputs.cuda_version || '13.0.0' }}"
+        Write-Host "Downloading CUDA SDK v$cudaVersion..."
+        
+        # Use network installer for CUDA 13.0.0 and above, local installer for older versions
+        if ([version]$cudaVersion -ge [version]"13.0.0") {
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/$cudaVersion/network_installers/cuda_${cudaVersion}_windows_network.exe"
+        } else {
+          # For older versions like 12.6.0, use local installer with appropriate driver version
+          $cudaUrl = "https://developer.download.nvidia.com/compute/cuda/$cudaVersion/local_installers/cuda_${cudaVersion}_560.94_windows.exe"
+        }
+        
+        $cudaInstaller = "cuda_installer.exe"
+        
+        Write-Host "Downloading from: $cudaUrl"
+        Invoke-WebRequest -Uri $cudaUrl -OutFile $cudaInstaller
+        
+        Write-Host "Installing CUDA SDK silently..."
+        Start-Process -Wait -FilePath $cudaInstaller -ArgumentList "-s"
+        
+        # Verify installation
+        $cudaPath = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion\bin\nvcc.exe"
+        if (Test-Path $cudaPath) {
+          Write-Host "CUDA SDK v$cudaVersion installed successfully"
+          # Set environment variables for the session
+          $env:CUDA_PATH = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+          echo "CUDA_PATH=$env:CUDA_PATH" >> $env:GITHUB_ENV
+          $versionEnvVar = "CUDA_PATH_V$($cudaVersion.Replace('.', '_'))"
+          echo "$versionEnvVar=$env:CUDA_PATH" >> $env:GITHUB_ENV
+        } else {
+          throw "CUDA SDK installation failed"
+        }
       
     - name: Setup CUDA Environment
       if: ${{ github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null }}
+      shell: powershell
       run: |
+        $cudaVersion = "${{ github.event.inputs.cuda_version || '13.0.0' }}"
+        $cuda_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v$cudaVersion"
+        
         # Add CUDA to PATH
-        $cuda_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}"
         echo "$cuda_path\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         echo "$cuda_path\libnvvp" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         
         # Set CUDA environment variables
         echo "CUDA_PATH=$cuda_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-        echo "CUDA_PATH_V${{ env.CUDA_VERSION }}=$cuda_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        $versionEnvVar = "CUDA_PATH_V$($cudaVersion.Replace('.', '_'))"
+        echo "$versionEnvVar=$cuda_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         
         # Verify CUDA installation
         Write-Output "Verifying CUDA installation..."
@@ -168,7 +191,8 @@ jobs:
         } else {
           Write-Output "⚠️  CUDA compiler not found at expected location"
         }
-      shell: powershell
+        
+        Write-Host "CUDA v$cudaVersion environment configured successfully"
 
     - name: Clone media-autobuild_suite
       shell: msys2 {0}
@@ -436,10 +460,9 @@ jobs:
         export CC=gcc
         export CXX=g++
         
-        # Add custom configure args if provided
-        if [[ -n "${{ github.event.inputs.custom_configure_args }}" ]]; then
-          export FFMPEG_EXTRA_CONFIGURE_ARGS="${{ github.event.inputs.custom_configure_args }}"
-          echo "Custom configure args: $FFMPEG_EXTRA_CONFIGURE_ARGS"
+        # Add custom configure args if provided for custom feature set
+        if [[ "${{ github.event.inputs.feature_set }}" == "custom" ]]; then
+          echo "Custom feature set selected - using default full build configuration"
         fi
         
         # Run the build suite
@@ -481,17 +504,17 @@ jobs:
         FFmpeg Version: ${{ github.event.inputs.ffmpeg_version || '8.0' }}
         Feature Set: ${{ github.event.inputs.feature_set || 'full' }}
         CUDA Support: ${{ github.event.inputs.enable_cuda || 'true' }}
+        CUDA Version: ${{ github.event.inputs.cuda_version || '13.0.0' }}
         Non-free Support: ${{ github.event.inputs.enable_nonfree || 'true' }}
         NPP Support: ${{ github.event.inputs.enable_npp || 'true' }}
         x264 Support: ${{ github.event.inputs.build_x264 || 'true' }}
         x265 Support: ${{ github.event.inputs.build_x265 || 'true' }}
         AV1 Support: ${{ github.event.inputs.build_av1 || 'true' }}
         Standalone Binaries: ${{ github.event.inputs.standalone_binaries || 'false' }}
-        Custom Args: ${{ github.event.inputs.custom_configure_args }}
         
         Build Environment:
         - Windows Runner: windows-latest
-        - CUDA Version: ${{ env.CUDA_VERSION }}
+        - CUDA Version: ${{ github.event.inputs.cuda_version || '13.0.0' }}
         EOF
         
         # List final artifacts
@@ -632,5 +655,6 @@ jobs:
       uses: actions/cache/save@v3
       with:
         path: |
-          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
-        key: cuda-${{ env.CUDA_VERSION }}-windows-failure-${{ github.run_number }}
+          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ github.event.inputs.cuda_version || '13.0.0' }}
+          C:\Program Files\NVIDIA Corporation\Nsight*
+        key: cuda-v${{ github.event.inputs.cuda_version || '13.0.0' }}-${{ runner.os }}-failure-${{ github.run_number }}
