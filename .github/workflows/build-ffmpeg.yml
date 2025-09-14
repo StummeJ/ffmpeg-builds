@@ -76,7 +76,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Cache CUDA Toolkit
-      if: ${{ github.event.inputs.enable_cuda == 'true' }}
+      if: ${{ github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null }}
       id: cache-cuda
       uses: actions/cache@v3
       with:
@@ -134,7 +134,7 @@ jobs:
           unzip
         
     - name: Install CUDA Toolkit
-      if: ${{ github.event.inputs.enable_cuda == 'true' && steps.cache-cuda.outputs.cache-hit != 'true' }}
+      if: ${{ (github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null) && steps.cache-cuda.outputs.cache-hit != 'true' }}
       run: |
         echo "Installing CUDA Toolkit ${{ env.CUDA_VERSION }}"
         # Download and install CUDA toolkit silently
@@ -149,7 +149,7 @@ jobs:
       shell: powershell
       
     - name: Setup CUDA Environment
-      if: ${{ github.event.inputs.enable_cuda == 'true' }}
+      if: ${{ github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null }}
       run: |
         # Add CUDA to PATH
         $cuda_path = "C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}"
@@ -159,6 +159,15 @@ jobs:
         # Set CUDA environment variables
         echo "CUDA_PATH=$cuda_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
         echo "CUDA_PATH_V${{ env.CUDA_VERSION }}=$cuda_path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        
+        # Verify CUDA installation
+        Write-Output "Verifying CUDA installation..."
+        if (Test-Path "$cuda_path\bin\nvcc.exe") {
+          Write-Output "✅ CUDA compiler found at: $cuda_path\bin\nvcc.exe"
+          & "$cuda_path\bin\nvcc.exe" --version
+        } else {
+          Write-Output "⚠️  CUDA compiler not found at expected location"
+        }
       shell: powershell
 
     - name: Clone media-autobuild_suite
@@ -185,14 +194,17 @@ jobs:
         ARCH=3  # 64-bit only
         
         # License: 1=Non-free if nonfree enabled, 4=LGPLv3 otherwise
-        if [[ "${{ github.event.inputs.enable_nonfree || 'true' }}" == "true" ]]; then
+        if [[ "${{ github.event.inputs.enable_nonfree }}" == "true" || "${{ github.event.inputs.enable_nonfree }}" == "" ]]; then
           LICENSE=1
         else
           LICENSE=4
         fi
         
         # Feature set mapping determines how many additional codecs/libraries are enabled
-        FEATURE_SET="${{ github.event.inputs.feature_set || 'full' }}"
+        FEATURE_SET="${{ github.event.inputs.feature_set }}"
+        if [[ "$FEATURE_SET" == "" ]]; then
+          FEATURE_SET="full"
+        fi
         case "$FEATURE_SET" in
           "minimal")
             FFMPEG_CHOICE=2  # Light build
@@ -209,14 +221,14 @@ jobs:
         esac
         
         # Individual codec settings
-        X264=$([ "${{ github.event.inputs.build_x264 || 'true' }}" == "true" ] && echo "1" || echo "2")
-        X265=$([ "${{ github.event.inputs.build_x265 || 'true' }}" == "true" ] && echo "1" || echo "2")
-        AOM=$([ "${{ github.event.inputs.build_av1 || 'true' }}" == "true" ] && echo "1" || echo "2")
-        VPX=$([ "${{ github.event.inputs.build_av1 || 'true' }}" == "true" ] && echo "1" || echo "2")
-        SVT_AV1=$([ "${{ github.event.inputs.build_av1 || 'true' }}" == "true" ] && echo "1" || echo "2")
+        X264=$([ "${{ github.event.inputs.build_x264 }}" == "false" ] && echo "2" || echo "1")
+        X265=$([ "${{ github.event.inputs.build_x265 }}" == "false" ] && echo "2" || echo "1")
+        AOM=$([ "${{ github.event.inputs.build_av1 }}" == "false" ] && echo "2" || echo "1")
+        VPX=$([ "${{ github.event.inputs.build_av1 }}" == "false" ] && echo "2" || echo "1")
+        SVT_AV1=$([ "${{ github.event.inputs.build_av1 }}" == "false" ] && echo "2" || echo "1")
         
         # Standalone binaries
-        STANDALONE=$([ "${{ github.event.inputs.standalone_binaries || 'false' }}" == "true" ] && echo "1" || echo "2")
+        STANDALONE=$([ "${{ github.event.inputs.standalone_binaries }}" == "true" ] && echo "1" || echo "2")
         
         # Set codec/library values based on feature set
         if [[ "$ENABLE_EXTRA_CODECS" == "true" ]]; then
@@ -347,7 +359,7 @@ jobs:
         echo "Configuration Summary:"
         echo "Architecture: 64-bit only"
         echo "License: $([ $LICENSE -eq 1 ] && echo 'Non-free' || echo 'LGPL')"
-        echo "Feature Set: ${{ github.event.inputs.feature_set || 'full' }}"
+        echo "Feature Set: $FEATURE_SET"
         echo "FFmpeg Choice: $FFMPEG_CHOICE ($([ $FFMPEG_CHOICE -eq 2 ] && echo 'Light' || [ $FFMPEG_CHOICE -eq 3 ] && echo 'Zeranoe' || echo 'Full'))"
         echo "x264: $([ $X264 -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
         echo "x265: $([ $X265 -eq 1 ] && echo 'Enabled' || echo 'Disabled')"
@@ -356,54 +368,54 @@ jobs:
         echo "Extra Codecs: $ENABLE_EXTRA_CODECS"
         
         # Create ffmpeg_options.txt for CUDA/NPP support if needed
-        if [[ "${{ github.event.inputs.enable_cuda || 'true' }}" == "true" || "${{ github.event.inputs.enable_npp || 'true' }}" == "true" ]]; then
+        if [[ "${{ github.event.inputs.enable_cuda }}" != "false" || "${{ github.event.inputs.enable_npp }}" != "false" ]]; then
           echo ""
           echo "Creating ffmpeg_options.txt for CUDA/NPP support..."
-          cat > build/ffmpeg_options.txt << 'FFMPEG_EOF'
-          # FFmpeg options file - generated by GitHub Actions
-          # Lines starting with # are ignored
-          
-          # Basic built-in options
-          --disable-autodetect
-          amf
-          bzlib
-          cuda
-          cuvid
-          d3d12va
-          d3d11va
-          dxva2
-          iconv
-          lzma
-          nvenc
-          schannel
-          zlib
-          sdl2
-          ffnvcodec
-          nvdec
-          cuda-llvm
-          
-          # Common external libs  
-          gmp
-          gpl
-          libmp3lame
-          libopus
-          libvorbis
-          libvpx
-          libx264
-          libx265
-          libdav1d
-          libaom
-          --disable-debug
-          libfdk-aac
-          FFMPEG_EOF
+          cat > build/ffmpeg_options.txt << 'EOF'
+        # FFmpeg options file - generated by GitHub Actions
+        # Lines starting with # are ignored
+        
+        # Basic built-in options
+        --disable-autodetect
+        amf
+        bzlib
+        cuda
+        cuvid
+        d3d12va
+        d3d11va
+        dxva2
+        iconv
+        lzma
+        nvenc
+        schannel
+        zlib
+        sdl2
+        ffnvcodec
+        nvdec
+        cuda-llvm
+        
+        # Common external libs  
+        gmp
+        gpl
+        libmp3lame
+        libopus
+        libvorbis
+        libvpx
+        libx264
+        libx265
+        libdav1d
+        libaom
+        --disable-debug
+        libfdk-aac
+        EOF
           
           # Add NPP support if enabled
-          if [[ "${{ github.event.inputs.enable_npp || 'true' }}" == "true" ]]; then
+          if [[ "${{ github.event.inputs.enable_npp }}" != "false" ]]; then
             echo "libnpp" >> build/ffmpeg_options.txt
           fi
           
           # Add CUDA filters if CUDA enabled  
-          if [[ "${{ github.event.inputs.enable_cuda || 'true' }}" == "true" ]]; then
+          if [[ "${{ github.event.inputs.enable_cuda }}" != "false" ]]; then
             echo "cuda-nvcc" >> build/ffmpeg_options.txt
           fi
           
@@ -427,6 +439,7 @@ jobs:
         # Add custom configure args if provided
         if [[ -n "${{ github.event.inputs.custom_configure_args }}" ]]; then
           export FFMPEG_EXTRA_CONFIGURE_ARGS="${{ github.event.inputs.custom_configure_args }}"
+          echo "Custom configure args: $FFMPEG_EXTRA_CONFIGURE_ARGS"
         fi
         
         # Run the build suite
@@ -597,3 +610,27 @@ jobs:
         tag_name: v${{ github.event.inputs.ffmpeg_version || '8.0' }}-${{ github.run_number }}
         files: |
           artifacts/ffmpeg-build/build-info.txt
+
+    - name: Save MSYS2 Cache on Failure
+      if: failure()
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          D:\a\_temp\msys64\var\cache\pacman\pkg\
+        key: msys2-packages-${{ runner.os }}-${{ hashFiles('**/*.yml') }}-failure-${{ github.run_number }}
+
+    - name: Save media-autobuild_suite Cache on Failure  
+      if: failure()
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          media-autobuild_suite
+        key: media-autobuild-suite-${{ hashFiles('.github/workflows/build-ffmpeg.yml') }}-failure-${{ github.run_number }}
+
+    - name: Save CUDA Cache on Failure
+      if: failure() && (github.event.inputs.enable_cuda == 'true' || github.event.inputs.enable_cuda == '' || github.event.inputs.enable_cuda == null)
+      uses: actions/cache/save@v3
+      with:
+        path: |
+          C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v${{ env.CUDA_VERSION }}
+        key: cuda-${{ env.CUDA_VERSION }}-windows-failure-${{ github.run_number }}
